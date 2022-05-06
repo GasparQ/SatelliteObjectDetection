@@ -1,0 +1,15 @@
+name: satellite_object_detection
+channels:
+    - conda-forge
+    - pytorch
+dependencies:
+    - python=3
+    - ipykernel
+    - pandas
+    - pytorch
+    - torchvision
+    - cudatoolkit=11.3
+    - matplotlib
+    - seaborn
+    - tqdm
+    - opencv

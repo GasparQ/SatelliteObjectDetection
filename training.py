@@ -10,7 +10,7 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--workers',
         help='Number of workers for dataset loading', default=8)
     parser.add_argument('-p', '--prefetch',
-        help='Number of batch to prefetch for each worker', default=2)
+        help='Number of sample to prefetch for each training sample', default=10)
 
     args = parser.parse_args()
 
@@ -36,12 +36,20 @@ if __name__ == '__main__':
     # create the train and test datasets
     train_dataset = SegmentationDataset(
         image_paths=train_images_path,
-        mask_paths=train_masks_path
+        mask_paths=train_masks_path,
+        crop_size=(config.INPUT_IMAGE_HEIGHT, config.INPUT_IMAGE_WIDTH),
+        device=config.DEVICE,
+        sample_factor=args.prefetch,
+        nworkers=int(args.workers * 0.8)
     )
 
     test_dataset = SegmentationDataset(
         image_paths=test_images_path,
-        mask_paths=test_masks_path
+        mask_paths=test_masks_path,
+        crop_size=(config.INPUT_IMAGE_HEIGHT, config.INPUT_IMAGE_WIDTH),
+        device=config.DEVICE,
+        nworkers=int(args.workers * 0.2),
+        auto_resample=False
     )
 
     logging.info(f"Found {len(train_dataset)} examples in the training set...")
@@ -51,19 +59,11 @@ if __name__ == '__main__':
     train_loader = DataLoader(
         train_dataset,
         batch_size=config.BATCH_SIZE,
-        num_workers=int(args.workers * 0.8),
-        prefetch_factor=args.prefetch,
-        persistent_workers=True,
-        pin_memory=config.PIN_MEMORY,
         shuffle=True,
     )
     test_loader = DataLoader(
         test_dataset,
     	batch_size=config.BATCH_SIZE,
-        num_workers=int(args.workers * 0.2),
-        prefetch_factor=args.prefetch,
-        persistent_workers=True,
-        pin_memory=config.PIN_MEMORY,
         shuffle=False,
     )
 

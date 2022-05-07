@@ -1,10 +1,9 @@
 import os
-import tqdm
 import time
 import logging
-
 from typing import List, Tuple
-from datetime import datetime
+
+import tqdm
 import matplotlib.pyplot as plt
 
 import torch
@@ -33,6 +32,7 @@ class Experiment:
         Returns:
             Experiment: newly created experiment
         """
+        os.makedirs(config.OUTPUT_PATH)
         return Experiment(UNet(), config)
 
     @staticmethod
@@ -65,7 +65,7 @@ class Experiment:
         for (x, y) in tqdm.tqdm(data_loader, desc='Training: ',
                                 unit='batch', position=1, leave=False):
             # send the input to the device
-            (x, y) = (x.to(self._config.DEVICE), y.to(self._config.DEVICE))
+            # (x, y) = (x.to(self._config.DEVICE), y.to(self._config.DEVICE))
             # perform a forward pass and calculate the training loss
             pred = self._model(x)
             loss = self._loss(pred, y)
@@ -95,8 +95,8 @@ class Experiment:
             # loop over the validation set
             for (x, y) in tqdm.tqdm(data_loader, desc='Testing: ',
                                     unit='batch', position=1, leave=False):
-                # send the input to the device
-                (x, y) = (x.to(self._config.DEVICE), y.to(self._config.DEVICE))
+                # # send the input to the device
+                # (x, y) = (x.to(self._config.DEVICE), y.to(self._config.DEVICE))
                 # make the predictions and calculate the validation loss
                 pred = self._model(x)
                 total_loss += self._loss(pred, y)
@@ -128,6 +128,7 @@ class Experiment:
         logging.info("Training the network...")
         start_time = time.time()
         for _ in tqdm.trange(self._config.NUM_EPOCHS, desc='Epoch: ', unit='epoch', position=0):
+
             # perform training step and get sum of train losses
             total_train_loss = self.train_step(train_dataset)
 

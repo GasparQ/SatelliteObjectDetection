@@ -4,8 +4,6 @@ from torch.nn import Conv2d
 from torch.nn import Module
 from torch.nn import functional as F
 
-from ..config import INPUT_IMAGE_HEIGHT, INPUT_IMAGE_WIDTH
-
 from .u_encoder import UEncoder
 from .u_decoder import UDecoder
 
@@ -14,9 +12,9 @@ class UNet(Module):
     def __init__(self,
                  input_channel: int=3,
                  encoding_channels: Tuple[int]=(16, 32, 64),
-                 output_channel=1,
-                 retain_dim=True,
-                 out_size=(INPUT_IMAGE_HEIGHT,  INPUT_IMAGE_WIDTH)):
+                 output_channel: int=1,
+                 retain_dim: bool=True,
+                 out_size: Tuple[int, int]=(None, None)):
         """Create a Unet from input, output and encoding channels
         Note: decoding channels will be the mirror of encoding channels
 
@@ -28,7 +26,7 @@ class UNet(Module):
             retain_dim (bool, optional): Weather to resize or not output dimension to out_size.
                 Defaults to True.
             out_size (tuple, optional): Size of the output if retain_dim specified.
-                Defaults to (INPUT_IMAGE_HEIGHT,  INPUT_IMAGE_WIDTH).
+                Defaults to (None, None)
         """
         super().__init__()
         # initialize the encoder and decoder

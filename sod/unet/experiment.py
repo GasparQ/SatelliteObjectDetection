@@ -7,7 +7,7 @@ import tqdm
 import matplotlib.pyplot as plt
 
 import torch
-from torch.nn import Module, BCEWithLogitsLoss
+from torch.nn import Module, BCEWithLogitsLoss, CrossEntropyLoss
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
@@ -19,7 +19,10 @@ class Experiment:
         self._model = model.to(config.DEVICE)
         self._config = config
 
-        self._loss = BCEWithLogitsLoss()
+        if config.NUM_CLASSES == 1:
+            self._loss = BCEWithLogitsLoss()
+        else:
+            self._loss = CrossEntropyLoss()
         self._opt = Adam(self._model.parameters(), lr=config.INIT_LR)
 
     @staticmethod
@@ -33,7 +36,13 @@ class Experiment:
             Experiment: newly created experiment
         """
         os.makedirs(config.OUTPUT_PATH)
-        return Experiment(UNet(), config)
+        return Experiment(UNet(
+            input_channel=config.INPUT_CHANNEL,
+            encoding_channels=config.ENCODING_CHANNELS,
+            output_channel=config.OUTPUT_CHANNEL,
+            retain_dim=True,
+            out_size=(config.INPUT_IMAGE_HEIGHT, config.INPUT_IMAGE_WIDTH)
+        ), config)
 
     @staticmethod
     def load(config):

@@ -1,12 +1,9 @@
 from functools import partial
+from typing import List, Tuple
 
 import tqdm
 
-from typing import List, Tuple
-
-# from multiprocessing import Pool, Lock
-
-from torch.multiprocessing import Pool, Lock
+import numpy as np
 
 import cv2
 
@@ -14,6 +11,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 from torchvision.transforms import functional as trf
+from torch.multiprocessing import Pool, Lock
 
 # mutex to perform the send to device operation synchronously
 # device_send_mutex = Lock()
@@ -37,11 +35,20 @@ def sample_image_random_crops(img_mask_pathes: Tuple[str, str],
     # and read the associated mask from disk in grayscale mode
     image = cv2.imread(image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    mask = cv2.imread(mask_path, 0)
+    mask = cv2.imread(mask_path)
 
     # convert into PIL Image
     image = trf.to_pil_image(image)
-    mask = trf.to_pil_image(mask)
+    # mask = trf.to_pil_image(mask)
+
+    # convert into binary mask
+    #   - convert rgb into greyscale image (max applied)
+    #   - clip values between 0 and 1
+    #   - add channel as first dimension
+    mask = np.expand_dims(mask.max(-1).clip(0, 1), 0)
+
+    # convert to uint8 tensor
+    mask = torch.as_tensor(mask, dtype=torch.uint8)
 
     random_crops = []
     for i in range(sample_factor):
@@ -50,15 +57,13 @@ def sample_image_random_crops(img_mask_pathes: Tuple[str, str],
 
         # perform synchronous crop on image and mask
         cropped_img = trf.to_tensor(trf.crop(image, i, j, height, width))
-        cropped_mask = trf.to_tensor(trf.crop(mask, i, j, height, width))
-
-        # send to device synchronously
-        # with device_send_mutex:
-        # cropped_img = cropped_img.to(device)
-        # cropped_mask = cropped_mask.to(device)
+        cropped_mask = trf.crop(mask, i, j, height, width).float()
 
         # append to sample list
         random_crops.append((cropped_img, cropped_mask))
+
+    del image
+    del mask
 
     return random_crops
 
@@ -119,7 +124,7 @@ class SegmentationDataset(Dataset):
         progress_bar = partial(
             tqdm.tqdm,
             desc='Preload segmentation dataset: ',
-            total=len(self._image_paths),
+            total=len(self._samples_chunks),
             unit='image',
             position=2,
             leave=False

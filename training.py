@@ -10,7 +10,7 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--workers',
         help='Number of workers for dataset loading', default=8)
     parser.add_argument('-p', '--prefetch',
-        help='Number of sample to prefetch for each training sample', default=10)
+        help='Number of sample to prefetch for each training sample', default=2)
 
     args = parser.parse_args()
 

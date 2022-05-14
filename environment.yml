@@ -13,3 +13,4 @@ dependencies:
     - seaborn
     - tqdm
     - opencv
+    - h5py

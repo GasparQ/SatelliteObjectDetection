@@ -8,32 +8,26 @@ import torch
 from torchvision import transforms
 from torchvision.transforms import functional as trf
 
-def rotate_generator(image: torch.Tensor, mask: torch.Tensor) -> Iterator[Tuple[str, Tuple[torch.Tensor, torch.Tensor]]]:
-    yield 'no_rotate', (image, mask)
+N_SHAPE_TRANSFORMS = 6
+def shape_transformer(image: torch.Tensor, mask: torch.Tensor) -> Iterator[Tuple[str, Tuple[torch.Tensor, torch.Tensor]]]:
+    yield 'original', (image, mask)
     yield 'rotate_90', (trf.rotate(image, 90), trf.rotate(mask, 90))
     yield 'rotate_180', (trf.rotate(image, 180), trf.rotate(mask, 180))
     yield 'rotate_270', (trf.rotate(image, 270), trf.rotate(mask, 270))
     yield 'vflip', (trf.vflip(image), trf.vflip(mask))
     yield 'hflip', (trf.hflip(image), trf.hflip(mask))
 
-def transform_generator(image: torch.Tensor) -> Iterator[Tuple[str, torch.Tensor]]:
-    trs: List[Tuple[str, torch.Module]] = [
-        ('original', None),
-        ('color_jit', transforms.ColorJitter()),
-        ('grayscale', transforms.Grayscale(num_output_channels=3)),
-        ('perspective_d0.1', transforms.RandomPerspective(distortion_scale=0.1, p=1)),
-        ('inverted', transforms.RandomInvert(p=1)),
-        ('solarized_t200', transforms.RandomSolarize(threshold=200, p=1)),
-        ('posterized_b2', transforms.RandomPosterize(bits=2, p=1)),
-        ('blur_k5_s0.1+2', transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 2))),
-        ('equalize', transforms.RandomEqualize(p=1)),
-        ('contrast', transforms.RandomAutocontrast(p=1)),
-    ]
-    for name, tr in trs:
-        if tr is None:
-            yield name, image
-        else:
-            yield name, tr(image)
+N_COLOR_TRANSFORMS = 9
+def color_transformer(image: torch.Tensor) -> Iterator[Tuple[str, torch.Tensor]]:
+    yield 'original', image
+    yield 'color_jitter', transforms.ColorJitter()(image)
+    yield 'grayscale', trf.to_grayscale(image, num_output_channels=3)
+    yield 'inverted', trf.invert(image)
+    yield 'solarized_t200', trf.solarize(image, threshold=200)
+    yield 'posterized_b2', trf.posterize(image, bits=2)
+    yield 'gblur_k5_s0.1+2', trf.gaussian_blur(image, kernel_size=5, sigma=(0.1, 2))
+    yield 'equalize', trf.equalize(image)
+    yield 'autocontrast', trf.autocontrast(image)
 
 def sync_random_crop(image, mask, crop_size: Tuple[int, int]) -> Tuple[torch.Tensor, torch.Tensor]:
     """Perform synchronous random crop between image and mask

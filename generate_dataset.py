@@ -1,5 +1,6 @@
 """Script to generate an augmented image segmentation dataset into an hdf5 file"""
 
+from ast import parse
 import os
 from typing import Tuple
 
@@ -12,19 +13,28 @@ from sod.processing import image_augmentation
 class ImageMaskSampler:
     """Perform image sampling asynchronously"""
 
-    N_TRANSFORMS = image_augmentation.N_COLOR_TRANSFORMS * image_augmentation.N_SHAPE_TRANSFORMS
-
-    def __init__(self, samples_queue: Queue, crop_size: Tuple[int, int], crop_number: int) -> None:
+    def __init__(self,
+                 samples_queue: Queue,
+                 crop_size: Tuple[int, int],
+                 crop_number: int,
+                 with_augmentation: bool=True) -> None:
         """Create an image sampler
 
         Args:
             samples_queue (Queue): Multiprocessing queue to feed with generated samples
             crop_size (Tuple[int, int]): Size used to random crop samples
             crop_number (int): Number of random crops to perform per augmented image
+            with_augmentation (bool, optional): Weather perform data augmentation or not
         """
         self._samples_queue = samples_queue
         self._crop_size = crop_size
         self._crop_number = crop_number
+        self._with_augmentation = with_augmentation
+        if with_augmentation:
+            self.n_transforms = (image_augmentation.N_COLOR_TRANSFORMS *
+                                  image_augmentation.N_SHAPE_TRANSFORMS)
+        else:
+            self.n_transforms = 1
 
     def __call__(self, image_path: str, mask_path: str) -> int:
         """Generate samples of image and mask
@@ -48,11 +58,24 @@ class ImageMaskSampler:
         img, mask = image_augmentation.load_image_mask_pair(image_path, mask_path)
         # peform sampling
         size = 0
+
+        # create color samples on which iterate with or without data augmentation
+        if self._with_augmentation:
+            color_samples = image_augmentation.color_transformer(img)
+        else:
+            color_samples = (('original', img),)
+
         # perform color transformations on images only (not masks)
-        for color_tr, tr_image in image_augmentation.color_transformer(img):
-            # print(color_tr)
+        for color_tr, tr_image in color_samples:
+            
+            # create shape samples on which iterate with or without data augmentation
+            if self._with_augmentation:
+                shape_samples = image_augmentation.shape_transformer(tr_image, mask)
+            else:
+                shape_samples = (('original', (tr_image, mask)),)
+
             # perform shape transformations on images and masks to keep synchronisation
-            for shape_tr, (rt_img, rt_msk) in image_augmentation.shape_transformer(tr_image, mask):
+            for shape_tr, (rt_img, rt_msk) in shape_samples:
                 # print(shape_tr)
                 # perform random crop on transformed images/masks
                 s_imgs, s_msks = [], []
@@ -119,6 +142,11 @@ if __name__ == '__main__':
         help="Number of CPU on which parallelise processing",
         type=int, default=os.cpu_count()
     )
+    parser.add_argument(
+        '-a', '--augmentation',
+        help='Perform data augmentation over samples',
+        action='store_true'
+    )
 
     # Parse arguments from command line
 
@@ -138,11 +166,6 @@ if __name__ == '__main__':
 
     images = glob.glob(os.path.join(args.images_folder, '*.png'))
     masks = glob.glob(os.path.join(args.masks_folder, '*.png'))
-
-    # Compute sample size in input and output
-
-    n_samples_in = len(images)
-    n_samples_out = n_samples_in * ImageMaskSampler.N_TRANSFORMS
 
     # Check if there is at least one file in both folders
 
@@ -212,10 +235,17 @@ if __name__ == '__main__':
 
             # Create multiprocessing manager and queue
             manager = Manager()
-            samples_q = manager.Queue(maxsize=int(6e9 / (width * height * args.crop * 4))) # limit to 3Go RAM
+            maxsize = int(6e9 / (width * height * args.crop * 4))  # limit to 3Go RAM
+            samples_q = manager.Queue(maxsize=maxsize)
 
             # Create a sample with the queue to feed and augmentation parameters
-            sampler = ImageMaskSampler(samples_q, (height, width), args.crop)
+            sampler = ImageMaskSampler(samples_q, (height, width), args.crop,
+                                       with_augmentation=args.augmentation)
+
+            # Compute sample size in input and output
+
+            n_samples_in = len(images)
+            n_samples_out = n_samples_in * sampler.n_transforms
 
             # Map image/mask pair to pool workers
             p.starmap_async(sampler, zip(images, masks))

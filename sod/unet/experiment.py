@@ -74,7 +74,7 @@ class Experiment:
         for (x, y) in tqdm.tqdm(data_loader, desc='Training: ',
                                 unit='batch', position=1, leave=False):
             # send the input to the device
-            # (x, y) = (x.to(self._config.DEVICE), y.to(self._config.DEVICE))
+            (x, y) = (x.to(self._config.DEVICE), y.to(self._config.DEVICE))
             # perform a forward pass and calculate the training loss
             pred = self._model(x)
             loss = self._loss(pred, y)
@@ -104,8 +104,8 @@ class Experiment:
             # loop over the validation set
             for (x, y) in tqdm.tqdm(data_loader, desc='Testing: ',
                                     unit='batch', position=1, leave=False):
-                # # send the input to the device
-                # (x, y) = (x.to(self._config.DEVICE), y.to(self._config.DEVICE))
+                # send the input to the device
+                (x, y) = (x.to(self._config.DEVICE), y.to(self._config.DEVICE))
                 # make the predictions and calculate the validation loss
                 pred = self._model(x)
                 total_loss += self._loss(pred, y)

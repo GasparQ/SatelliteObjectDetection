@@ -55,17 +55,7 @@ def load_image_mask_pair(image_path: str, mask_path: str)  -> Tuple[np.array, np
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     mask = cv2.imread(mask_path)
 
-    # convert into PIL Image
-    image = trf.to_pil_image(image)
-    # mask = trf.to_pil_image(mask)
-
-    # convert into binary mask
-    #   - convert rgb into greyscale image (max applied)
-    #   - clip values between 0 and 1
-    #   - add channel as first dimension
-    mask = np.expand_dims(mask.max(-1).clip(0, 1), 0)
-
-    mask = torch.as_tensor(mask, dtype=torch.uint8)
+    mask = np.expand_dims(mask.max(-1).clip(0, 1), -1)
 
     return image, mask
 

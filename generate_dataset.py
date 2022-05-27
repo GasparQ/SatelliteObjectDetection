@@ -5,6 +5,7 @@ from typing import Iterator, List, Tuple
 
 from multiprocessing import Queue, Pool, Manager
 
+import numpy as np
 import tqdm
 import h5py
 
@@ -57,6 +58,8 @@ class ImageMaskSampler:
         # load the image and masks file content
         img, mask = image_augmentation.load_image_mask_pair(image_path, mask_path)
 
+        img = np.transpose(img, axes=(2, 0, 1))
+
         yield (img_basename, torch.as_tensor(img, dtype=torch.uint8), torch.as_tensor(mask, dtype=torch.uint8))
 
     def _group(self, image_path: str, mask_path: str) -> Iterator[Tuple[str, torch.Tensor, torch.Tensor]]:
@@ -65,9 +68,13 @@ class ImageMaskSampler:
         # load the image and masks file content
         img, mask = image_augmentation.load_image_mask_pair(image_path, mask_path)
 
+        # convert to pil image
+        img = torch.as_tensor(np.transpose(img, axes=(2, 0, 1)), dtype=torch.uint8)
+        mask = torch.as_tensor(np.transpose(mask, axes=(2, 0, 1)), dtype=torch.uint8)
+
         # perform synchronous center crop
-        img = torch.as_tensor(trf.center_crop(img, output_size=self._crop_size), dtype=torch.uint8)
-        mask = torch.as_tensor(trf.center_crop(mask, output_size=self._crop_size), dtype=torch.uint8)
+        img = trf.center_crop(img, output_size=self._crop_size)
+        mask = trf.center_crop(mask, output_size=self._crop_size)
 
         yield (img_basename, img, mask)
 
@@ -138,7 +145,7 @@ def generate_groupped_hdf5(images: List[str], masks: List[str], output_path: str
             sampler.set_sample_queue(samples_q)
 
             # Map image/mask pair to pool workers
-            p.starmap(sampler, zip(images, masks))
+            p.starmap_async(sampler, zip(images, masks))
 
             # Compute sample size in input and output
             n_samples_in = len(images)
@@ -150,15 +157,26 @@ def generate_groupped_hdf5(images: List[str], masks: List[str], output_path: str
                 # Retreive next sample from queue
                 _, imgs, masks = samples_q.get()
 
-                if i == 0:
-                    output_file.create_dataset('/images', data=imgs, compression='gzip', chunks=True, maxshape=(None,) + imgs.shape)
-                    output_file.create_dataset('/masks', data=masks, compression='gzip', chunks=True, maxshape=(None,) + masks.shape)
-                else:
-                    output_file['/images'].resize((output_file['/images'].shape[0] + imgs.shape[0]), axis=0)
-                    output_file['/images'][-imgs.shape[0]:] = imgs
+                img_shape = imgs.shape
+                msk_shape = masks.shape
 
-                    output_file['/masks'].resize((output_file['/masks'].shape[0] + masks.shape[0]), axis=0)
-                    output_file['/masks'][-masks.shape[0]:] = masks
+                imgs = imgs[None, :]
+                masks = masks[None, :]
+
+                if i == 0:
+                    output_file.create_dataset('/images', data=imgs,
+                                               compression='gzip', chunks=True,
+                                               maxshape=(None,) + img_shape)
+
+                    output_file.create_dataset('/masks', data=masks,
+                                               compression='gzip', chunks=True,
+                                               maxshape=(None,) + msk_shape)
+                else:
+                    output_file['/images'].resize(output_file['/images'].shape[0] + 1, axis=0)
+                    output_file['/images'][-1:] = imgs
+
+                    output_file['/masks'].resize(output_file['/masks'].shape[0] + 1, axis=0)
+                    output_file['/masks'][-1:] = masks
 
 def generate_named_hdf5(images: List[str], masks: List[str], output_path: str, sampler: ImageMaskSampler, parallel: int):
     # Open the hdf5 file that will contain the final dataset

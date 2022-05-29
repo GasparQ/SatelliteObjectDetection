@@ -134,83 +134,83 @@ def generate_groupped_hdf5(images: List[str], masks: List[str], output_path: str
     # Open the hdf5 file that will contain the final dataset
     with h5py.File(output_path, mode='w') as output_file:
 
-        # Start the multiprocessing pool with the right number of processes
-        with Pool(parallel) as p:
-
+        with Manager() as manager:
             # Create multiprocessing manager and queue
-            manager = Manager()
-            samples_q = manager.Queue(maxsize=10)
+            samples_q = manager.Queue(maxsize=parallel)
 
             # Create a sample with the queue to feed and augmentation parameters
             sampler.set_sample_queue(samples_q)
-
-            # Map image/mask pair to pool workers
-            p.starmap_async(sampler, zip(images, masks))
 
             # Compute sample size in input and output
             n_samples_in = len(images)
             n_samples_out = n_samples_in * sampler.n_samples_per_image
 
-            # For each output sample
-            for i in tqdm.trange(n_samples_out, desc='Image sampling', unit='sample'):
+            # Start the multiprocessing pool with the right number of processes
+            with Pool(parallel) as p:
 
-                # Retreive next sample from queue
-                _, imgs, masks = samples_q.get()
+                # Map image/mask pair to pool workers
+                p.starmap_async(sampler, zip(images, masks))
 
-                img_shape = imgs.shape
-                msk_shape = masks.shape
+                # For each output sample
+                for i in tqdm.trange(n_samples_out, desc='Image sampling', unit='sample'):
 
-                imgs = imgs[None, :]
-                masks = masks[None, :]
+                    # Retreive next sample from queue
+                    _, imgs, masks = samples_q.get()
 
-                if i == 0:
-                    output_file.create_dataset('/images', data=imgs,
-                                               compression='gzip', chunks=True,
-                                               maxshape=(None,) + img_shape)
+                    img_shape = imgs.shape
+                    msk_shape = masks.shape
 
-                    output_file.create_dataset('/masks', data=masks,
-                                               compression='gzip', chunks=True,
-                                               maxshape=(None,) + msk_shape)
-                else:
-                    output_file['/images'].resize(output_file['/images'].shape[0] + 1, axis=0)
-                    output_file['/images'][-1:] = imgs
+                    imgs = imgs[None, :]
+                    masks = masks[None, :]
 
-                    output_file['/masks'].resize(output_file['/masks'].shape[0] + 1, axis=0)
-                    output_file['/masks'][-1:] = masks
+                    if i == 0:
+                        output_file.create_dataset('/images', data=imgs,
+                                                compression='gzip', chunks=True,
+                                                maxshape=(None,) + img_shape)
+
+                        output_file.create_dataset('/masks', data=masks,
+                                                compression='gzip', chunks=True,
+                                                maxshape=(None,) + msk_shape)
+                    else:
+                        output_file['/images'].resize(output_file['/images'].shape[0] + 1, axis=0)
+                        output_file['/images'][-1:] = imgs
+
+                        output_file['/masks'].resize(output_file['/masks'].shape[0] + 1, axis=0)
+                        output_file['/masks'][-1:] = masks
 
 def generate_named_hdf5(images: List[str], masks: List[str], output_path: str, sampler: ImageMaskSampler, parallel: int):
     # Open the hdf5 file that will contain the final dataset
     with h5py.File(output_path, mode='w') as output_file:
 
-        # Start the multiprocessing pool with the right number of processes
-        with Pool(parallel) as p:
-
+        with Manager() as manager:
             # Create multiprocessing manager and queue
-            manager = Manager()
-            samples_q = manager.Queue(maxsize=10)
+            samples_q = manager.Queue(maxsize=parallel)
 
             # Create a sample with the queue to feed and augmentation parameters
             sampler.set_sample_queue(samples_q)
-
-            # Map image/mask pair to pool workers
-            p.starmap_async(sampler, zip(images, masks))
 
             # Compute sample size in input and output
             n_samples_in = len(images)
             n_samples_out = n_samples_in * sampler.n_samples_per_image
 
-            # For each output sample
-            for _ in tqdm.trange(n_samples_out, desc='Image sampling', unit='sample'):
+            # Start the multiprocessing pool with the right number of processes
+            with Pool(parallel) as pool:
 
-                # Retreive next sample from queue
-                name, imgs, masks = samples_q.get()
+                # Map image/mask pair to pool workers
+                pool.starmap_async(sampler, zip(images, masks))
 
-                # Write into hdf5 file in the group /image_name/color_transform/shape_transform
-                group = output_file.create_group(f'/{name}')
+                # For each output sample
+                for _ in tqdm.trange(n_samples_out, desc='Image sampling', unit='sample'):
 
-                # 2 datasets will be writen: transformed image crops, transformed mask crops
-                group.create_dataset('images', data=imgs.numpy(), compression='gzip')
-                group.create_dataset('masks', data=masks.numpy(), compression='gzip')
+                    # Retreive next sample from queue
+                    name, imgs, masks = samples_q.get()
+
+                    # Write into hdf5 file in the group /image_name/color_transform/shape_transform
+                    group = output_file.create_group(f'/{name}')
+
+                    # 2 datasets will be writen: transformed image crops, transformed mask crops
+                    group.create_dataset('images', data=imgs.numpy(), compression='gzip')
+                    group.create_dataset('masks', data=masks.numpy(), compression='gzip')
 
 def parse_size(size: str) -> Tuple[int, int]:
     if not re.match('[0-9]+x[0-9]+', size):

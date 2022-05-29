@@ -9,7 +9,7 @@ import numpy as np
 
 from torch.utils.data import Dataset
 
-class SegmentationDatasetHDF5(Dataset):
+class SegmentationDatasetHDF5Augment(Dataset):
     """Segmentation dataset from HDF5 file
 
     The hdf5 file hierarchy must follow:
